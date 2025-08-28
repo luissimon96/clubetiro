@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(copy .env.example .env)",
+      "Bash(chmod:*)",
+      "Bash(git clone:*)",
+      "Bash(npm install:*)",
+      "Bash(superclaude install:*)",
+      "Bash(cp:*)",
+      "Bash(rm:*)",
+      "Bash(dir)",
+      "Bash(dir:*)",
+      "Bash(powershell:*)",
+      "Bash(node:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(timeout 30 docker-compose logs postgres)",
+      "Bash(npm start)",
+      "Bash(taskkill:*)",
+      "Bash(docker-compose:*)",
+      "Bash(curl:*)"
+    ],
+    "deny": [],
+    "ask": [],
+    "additionalDirectories": [
+      "C:\\Users\\luiss\\.claude"
+    ]
+  }
+}
