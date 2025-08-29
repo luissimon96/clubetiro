@@ -67,6 +67,51 @@
           />
         </div>
 
+        <!-- Member Status Section -->
+        <div class="border-t pt-4">
+          <h3 class="text-md font-medium text-gray-900 mb-4">Status de Associação</h3>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="flex items-center space-x-3">
+              <input
+                id="associado"
+                v-model="form.associado"
+                type="checkbox"
+                class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label for="associado" class="text-sm font-medium text-gray-700">
+                É associado do clube
+              </label>
+            </div>
+            
+            <AppInput
+              v-model="form.telefone"
+              label="Telefone"
+              placeholder="(11) 99999-9999"
+              :error="formErrors.telefone"
+            />
+          </div>
+          
+          <div v-if="form.associado" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <AppInput
+              v-model="form.dataAssociacao"
+              type="date"
+              label="Data de Associação"
+              :error="formErrors.dataAssociacao"
+            />
+            
+            <AppSelect
+              v-model="form.statusAssociacao"
+              label="Status da Associação"
+              :options="[
+                { value: 'ativo', label: 'Ativo' },
+                { value: 'inativo', label: 'Inativo' },
+                { value: 'suspenso', label: 'Suspenso' }
+              ]"
+            />
+          </div>
+        </div>
+
         <div class="flex justify-end space-x-3">
           <AppButton
             type="button"
@@ -104,6 +149,19 @@
             ]"
           >
             {{ value === 'admin' ? 'Administrador' : 'Comum' }}
+          </span>
+        </template>
+        
+        <template #cell-associado="{ value }">
+          <span
+            :class="[
+              'px-2 py-1 text-xs font-medium rounded-full',
+              value
+                ? 'bg-green-100 text-green-800'
+                : 'bg-gray-100 text-gray-800'
+            ]"
+          >
+            {{ value ? 'Associado' : 'Não Associado' }}
           </span>
         </template>
         
@@ -163,13 +221,19 @@ const form = reactive({
   nome: '',
   email: '',
   senha: '',
-  tipo: 'comum' as 'admin' | 'comum'
+  tipo: 'comum' as 'admin' | 'comum',
+  associado: false,
+  telefone: '',
+  dataAssociacao: '',
+  statusAssociacao: 'ativo' as 'ativo' | 'inativo' | 'suspenso'
 })
 
 const formErrors = reactive({
   nome: '',
   email: '',
-  senha: ''
+  senha: '',
+  telefone: '',
+  dataAssociacao: ''
 })
 
 // Table configuration
@@ -177,6 +241,7 @@ const tableColumns = [
   { key: 'nome', label: 'Nome' },
   { key: 'email', label: 'Email' },
   { key: 'tipo', label: 'Tipo' },
+  { key: 'associado', label: 'Associado' },
   { key: 'dataCadastro', label: 'Data Cadastro', type: 'date' }
 ]
 
@@ -197,12 +262,18 @@ function resetForm() {
     nome: '',
     email: '',
     senha: '',
-    tipo: 'comum'
+    tipo: 'comum',
+    associado: false,
+    telefone: '',
+    dataAssociacao: '',
+    statusAssociacao: 'ativo'
   })
   Object.assign(formErrors, {
     nome: '',
     email: '',
-    senha: ''
+    senha: '',
+    telefone: '',
+    dataAssociacao: ''
   })
   editingUser.value = null
 }
@@ -214,7 +285,9 @@ function validateForm() {
   Object.assign(formErrors, {
     nome: '',
     email: '',
-    senha: ''
+    senha: '',
+    telefone: '',
+    dataAssociacao: ''
   })
 
   if (!form.nome.trim()) {
@@ -264,7 +337,11 @@ function editUser(user: User) {
     nome: user.nome,
     email: user.email,
     senha: '',
-    tipo: user.tipo
+    tipo: user.tipo,
+    associado: user.associado || false,
+    telefone: user.telefone || '',
+    dataAssociacao: user.dataAssociacao || '',
+    statusAssociacao: user.statusAssociacao || 'ativo'
   })
   showForm.value = true
 }

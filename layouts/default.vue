@@ -28,12 +28,6 @@
               Eventos
             </NuxtLink>
             <NuxtLink
-              to="/participantes"
-              :class="linkClass('/participantes')"
-            >
-              Participantes
-            </NuxtLink>
-            <NuxtLink
               to="/resultados"
               :class="linkClass('/resultados')"
             >

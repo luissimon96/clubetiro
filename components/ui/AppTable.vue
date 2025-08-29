@@ -30,14 +30,14 @@
           >
             {{ column.label }}
           </th>
-          <th v-if="showActions" scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th v-if="showActions && !hasActionsColumn" scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
             Ações
           </th>
         </tr>
       </thead>
       <tbody class="bg-white divide-y divide-gray-200">
         <tr v-if="!tableData || tableData.length === 0">
-          <td :colspan="tableColumns.length + (showActions ? 1 : 0)" class="px-6 py-12 text-center text-gray-500">
+          <td :colspan="tableColumns.length + (showActions && !hasActionsColumn ? 1 : 0)" class="px-6 py-12 text-center text-gray-500">
             <div class="flex flex-col items-center">
               <svg class="h-12 w-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -58,7 +58,7 @@
               </slot>
             </slot>
           </td>
-          <td v-if="showActions" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+          <td v-if="showActions && !hasActionsColumn" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
             <div class="flex space-x-2">
               <slot name="actions" :item="item" :index="index">
                 <AppButton
@@ -105,6 +105,9 @@ defineEmits<{
 // Computed properties for backward compatibility
 const tableData = computed(() => props.data || props.items || [])
 const tableColumns = computed(() => props.columns || props.headers || [])
+const hasActionsColumn = computed(() => 
+  tableColumns.value.some(col => col.key === 'actions' || col.key === 'action')
+)
 
 function formatCellValue(value: any, type?: string): string {
   if (value === null || value === undefined) return '-'

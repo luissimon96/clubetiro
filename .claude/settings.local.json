@@ -21,7 +21,10 @@
       "Bash(npm run dev:*)",
       "Bash(npm uninstall:*)",
       "Bash(npm run postinstall:*)",
-      "Bash(docker volume rm:*)"
+      "Bash(docker volume rm:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker cp:*)",
+      "Bash(docker logs:*)"
     ],
     "deny": [],
     "ask": [],

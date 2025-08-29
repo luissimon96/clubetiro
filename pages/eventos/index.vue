@@ -98,6 +98,13 @@
           <div class="flex gap-2">
             <AppButton
               size="sm"
+              variant="primary"
+              @click="manageParticipants(item)"
+            >
+              Participantes
+            </AppButton>
+            <AppButton
+              size="sm"
               variant="secondary"
               @click="startEdit(item)"
             >
@@ -116,6 +123,105 @@
       </AppTable>
     </div>
 
+    <!-- Participants Management Modal -->
+    <div v-if="showParticipantsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg shadow-lg w-full max-w-4xl mx-4 max-h-screen overflow-y-auto">
+        <div class="p-6">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-semibold">
+              Participantes - {{ selectedEvento?.nome }}
+            </h2>
+            <AppButton
+              variant="secondary"
+              size="sm"
+              @click="closeParticipantsModal"
+            >
+              ✕
+            </AppButton>
+          </div>
+
+          <!-- User Search and Add -->
+          <div class="bg-gray-50 rounded-lg p-4 mb-6">
+            <h3 class="font-medium mb-4">Adicionar Participantes</h3>
+            <div class="flex gap-3">
+              <div class="flex-1">
+                <AppInput
+                  v-model="userSearch"
+                  label="Buscar Usuário"
+                  placeholder="Digite o nome ou email do usuário"
+                  @input="searchUsers"
+                />
+                <!-- Search Results -->
+                <div v-if="searchResults.length > 0" class="mt-2 border border-gray-300 rounded-md bg-white max-h-48 overflow-y-auto">
+                  <div
+                    v-for="user in searchResults"
+                    :key="user.id"
+                    class="p-3 border-b last:border-b-0 cursor-pointer hover:bg-gray-50"
+                    @click="addParticipant(user)"
+                  >
+                    <div class="flex justify-between items-center">
+                      <div>
+                        <div class="font-medium">{{ user.nome }}</div>
+                        <div class="text-sm text-gray-600">{{ user.email }}</div>
+                      </div>
+                      <span
+                        :class="[
+                          'px-2 py-1 text-xs font-medium rounded-full',
+                          user.associado
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-800'
+                        ]"
+                      >
+                        {{ user.associado ? 'Associado' : 'Não Associado' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Participants List -->
+          <div class="mb-4">
+            <h3 class="font-medium mb-4">Participantes Inscritos</h3>
+            <AppTable
+              :data="eventParticipants"
+              :columns="participantColumns"
+              :loading="participantsLoading"
+              :show-actions="true"
+            >
+              <template #cell-associado="{ value }">
+                <span
+                  :class="[
+                    'px-2 py-1 text-xs font-medium rounded-full',
+                    value
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-gray-100 text-gray-800'
+                  ]"
+                >
+                  {{ value ? 'Associado' : 'Não Associado' }}
+                </span>
+              </template>
+              
+              <template #cell-dataInscricao="{ value }">
+                {{ formatDate(value) }}
+              </template>
+
+              <template #actions="{ item }">
+                <AppButton
+                  size="sm"
+                  variant="danger"
+                  @click="removeParticipant(item.userId)"
+                >
+                  Remover
+                </AppButton>
+              </template>
+            </AppTable>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Error Message -->
     <div v-if="api.error.value" class="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
       {{ api.error.value }}
@@ -126,12 +232,23 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import type { Evento } from '../../models/evento'
+import type { User, EventParticipant } from '../../models/user'
 import { useApi } from '../../composables/useApi'
 
 // Data
 const eventos = ref<Evento[]>([])
 const editingEvento = ref<Evento | null>(null)
 const api = useApi<Evento>('/api/eventos')
+
+// Participants management
+const showParticipantsModal = ref(false)
+const selectedEvento = ref<Evento | null>(null)
+const eventParticipants = ref<EventParticipant[]>([])
+const participantsLoading = ref(false)
+const userSearch = ref('')
+const searchResults = ref<User[]>([])
+const allUsers = ref<User[]>([])
+const usersApi = useApi<User>('/api/users')
 
 // Form
 const form = ref({
@@ -163,6 +280,13 @@ const tableHeaders = [
   { key: 'local', label: 'Local' },
   { key: 'status', label: 'Status' },
   { key: 'actions', label: 'Ações', sortable: false }
+]
+
+const participantColumns = [
+  { key: 'nome', label: 'Nome' },
+  { key: 'email', label: 'Email' },
+  { key: 'associado', label: 'Tipo' },
+  { key: 'dataInscricao', label: 'Data Inscrição' }
 ]
 
 // Methods
@@ -295,6 +419,110 @@ function getStatusLabel(status: string): string {
 
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString('pt-BR')
+}
+
+// Participants management functions
+async function manageParticipants(evento: Evento) {
+  selectedEvento.value = evento
+  showParticipantsModal.value = true
+  await fetchEventParticipants(evento.id)
+  await fetchAllUsers()
+}
+
+function closeParticipantsModal() {
+  showParticipantsModal.value = false
+  selectedEvento.value = null
+  eventParticipants.value = []
+  userSearch.value = ''
+  searchResults.value = []
+}
+
+async function fetchEventParticipants(eventoId: string) {
+  participantsLoading.value = true
+  try {
+    const response = await fetch(`/api/eventos/${eventoId}/participantes`)
+    if (response.ok) {
+      const participants = await response.json()
+      eventParticipants.value = participants.map((p: any) => ({
+        ...p,
+        nome: p.user?.nome || 'N/A',
+        email: p.user?.email || 'N/A',
+        associado: p.user?.associado || false
+      }))
+    }
+  } catch (error) {
+    console.error('Erro ao carregar participantes:', error)
+  } finally {
+    participantsLoading.value = false
+  }
+}
+
+async function fetchAllUsers() {
+  try {
+    allUsers.value = await usersApi.getAll()
+  } catch (error) {
+    console.error('Erro ao carregar usuários:', error)
+  }
+}
+
+function searchUsers() {
+  if (!userSearch.value.trim()) {
+    searchResults.value = []
+    return
+  }
+
+  const query = userSearch.value.toLowerCase()
+  searchResults.value = allUsers.value
+    .filter(user => 
+      user.nome.toLowerCase().includes(query) || 
+      user.email.toLowerCase().includes(query)
+    )
+    .filter(user => 
+      !eventParticipants.value.some(p => p.userId === user.id)
+    )
+    .slice(0, 10) // Limit to 10 results
+}
+
+async function addParticipant(user: User) {
+  if (!selectedEvento.value) return
+
+  try {
+    const response = await fetch(`/api/eventos/${selectedEvento.value.id}/participantes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        userId: user.id
+      })
+    })
+
+    if (response.ok) {
+      await fetchEventParticipants(selectedEvento.value.id)
+      userSearch.value = ''
+      searchResults.value = []
+    }
+  } catch (error) {
+    console.error('Erro ao adicionar participante:', error)
+  }
+}
+
+async function removeParticipant(userId: string) {
+  if (!selectedEvento.value) return
+
+  if (confirm('Tem certeza que deseja remover este participante?')) {
+    try {
+      const response = await fetch(`/api/eventos/${selectedEvento.value.id}/participantes/${userId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        await fetchEventParticipants(selectedEvento.value.id)
+      }
+    } catch (error) {
+      console.error('Erro ao remover participante:', error)
+    }
+  }
 }
 
 // Lifecycle

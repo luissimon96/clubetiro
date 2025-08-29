@@ -29,6 +29,12 @@ export default defineNuxtConfig({
     databaseUrl: process.env.DATABASE_URL,
     redisUrl: process.env.REDIS_URL,
     
+    // JWT Configuration
+    jwtSecret: process.env.JWT_SECRET,
+    jwtRefreshSecret: process.env.JWT_REFRESH_SECRET,
+    jwtExpiresIn: process.env.JWT_EXPIRES_IN || '15m',
+    jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
+    
     // Public keys (exposed to client-side)
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || '/api'
@@ -51,6 +57,19 @@ export default defineNuxtConfig({
         headers: { 'Cache-Control': 'no-cache' },
         prerender: false
       }
+    }
+  },
+
+  // Vite Configuration to handle Node.js modules
+  vite: {
+    define: {
+      global: 'globalThis'
+    },
+    optimizeDeps: {
+      exclude: ['jsonwebtoken', 'bcryptjs']
+    },
+    ssr: {
+      noExternal: ['jsonwebtoken', 'bcryptjs']
     }
   },
 
