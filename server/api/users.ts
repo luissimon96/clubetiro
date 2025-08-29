@@ -1,13 +1,13 @@
 import { User } from '../../models/user';
 import crypto from 'crypto';
-
-let users: User[] = [];
+import { getUserStore } from '../utils/userStore';
 
 export default defineEventHandler(async (event) => {
   const method = event.node.req.method;
   const url = getRouterParam(event, '_');
   
   if (method === 'GET') {
+    const users = getUserStore();
     return users.map(user => ({ ...user, senha: undefined })); // Don't send passwords
   }
   
@@ -20,23 +20,14 @@ export default defineEventHandler(async (event) => {
       dataCadastro: new Date().toISOString(),
       tipo: body.tipo || 'comum'
     };
+    const users = getUserStore();
     users.push(newUser);
     return { ...newUser, senha: undefined }; // Don't send password back
   }
   
-  if (method === 'PUT') {
-    const body = await readBody(event);
-    const idx = users.findIndex(u => u.id === body.id);
-    if (idx !== -1) {
-      users[idx] = { ...users[idx], ...body };
-      return { ...users[idx], senha: undefined };
-    }
-    return { error: 'User not found' };
-  }
-  
-  if (method === 'DELETE') {
-    const id = url; // ID comes from URL parameter
-    users = users.filter(u => u.id !== id);
-    return { success: true };
-  }
+  // PUT and DELETE are now handled by dynamic routes
+  throw createError({
+    statusCode: 405,
+    statusMessage: 'Method not allowed'
+  });
 });

@@ -6,31 +6,32 @@ services:
     image: postgres:15-alpine
     container_name: clube-tiro-postgres
     environment:
-      POSTGRES_DB: clube_tiro_db
-      POSTGRES_USER: clube_tiro_user
-      POSTGRES_PASSWORD: clube_tiro_pass
+      POSTGRES_DB: ${POSTGRES_DB:-clube_tiro_db}
+      POSTGRES_USER: ${POSTGRES_USER:-clube_tiro_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clube_tiro_pass}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8"
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - ./volumes/postgres-data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d
     networks:
       - clube-tiro-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U clube_tiro_user -d clube_tiro_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-clube_tiro_user} -d ${POSTGRES_DB:-clube_tiro_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   # Cache Redis
   redis:
     image: redis:7-alpine
     container_name: clube-tiro-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
-      - ./volumes/redis-data:/data
+      - redis_data:/data
     networks:
       - clube-tiro-network
     healthcheck:
@@ -38,28 +39,27 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+    command: redis-server --appendonly yes
 
-  # Backend API
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: clube-tiro-backend
+  # Aplicação Nuxt.js (desenvolvimento)
+  nuxt-app:
+    image: node:20-alpine
+    container_name: clube-tiro-nuxt-dev
+    working_dir: /app
     ports:
-      - "3001:3001"
+      - "${NUXT_PORT:-3000}:3000"
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgresql://clube_tiro_user:clube_tiro_pass@postgres:5432/clube_tiro_db
+      NUXT_HOST: 0.0.0.0
+      NUXT_PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-clube_tiro_user}:${POSTGRES_PASSWORD:-clube_tiro_pass}@postgres:5432/${POSTGRES_DB:-clube_tiro_db}
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
-      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
-      PORT: 3001
+      NUXT_SECRET_KEY: ${NUXT_SECRET_KEY:-dev-secret-key-change-in-production}
     volumes:
-      - ./backend:/app
-      - ./volumes/uploads:/app/uploads
-      - ./volumes/logs:/app/logs
-      - /app/node_modules
+      # Mount source code for development hot reload
+      - .:/app
+      - node_modules:/app/node_modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -67,48 +67,19 @@ services:
         condition: service_healthy
     networks:
       - clube-tiro-network
-    command: npm run dev
-
-  # Frontend React
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: clube-tiro-frontend
-    ports:
-      - "3000:3000"
-    environment:
-      REACT_APP_API_URL: http://localhost:3001/api
-      CHOKIDAR_USEPOLLING: true
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    depends_on:
-      - backend
-    networks:
-      - clube-tiro-network
-    command: npm start
-
-  # Nginx Proxy (apenas em produção, comentado no dev)
-  # nginx:
-  #   image: nginx:alpine
-  #   container_name: clube-tiro-nginx
-  #   ports:
-  #     - "80:80"
-  #     - "443:443"
-  #   volumes:
-  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-  #     - ./nginx/ssl:/etc/nginx/ssl:ro
-  #   depends_on:
-  #     - frontend
-  #     - backend
-  #   networks:
-  #     - clube-tiro-network
+    restart: unless-stopped
+    # Instalar dependências e executar desenvolvimento
+    command: sh -c "npm ci && npm run dev"
 
 networks:
   clube-tiro-network:
     driver: bridge
+    name: clube-tiro-network
 
 volumes:
   postgres_data:
+    name: clube-tiro-postgres-data
   redis_data:
+    name: clube-tiro-redis-data
+  node_modules:
+    name: clube-tiro-node-modules

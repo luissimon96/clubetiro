@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # Banco de dados PostgreSQL (Produção)
   postgres:
     image: postgres:15-alpine
     container_name: clube-tiro-postgres-prod
@@ -8,6 +9,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d
@@ -19,7 +21,18 @@ services:
       timeout: 10s
       retries: 3
     restart: unless-stopped
+    # Configurações de performance para produção
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.track=all
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c work_mem=4MB
+      -c maintenance_work_mem=64MB
 
+  # Cache Redis (Produção)
   redis:
     image: redis:7-alpine
     container_name: clube-tiro-redis-prod
@@ -33,18 +46,33 @@ services:
       timeout: 10s
       retries: 3
     restart: unless-stopped
+    # Configurações de performance para produção
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
 
-  backend:
+  # Aplicação Nuxt.js (Produção)
+  nuxt-app:
     build:
-      context: ./backend
-      dockerfile: Dockerfile.prod
-    container_name: clube-tiro-backend-prod
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: clube-tiro-nuxt-prod
     environment:
       NODE_ENV: production
+      NUXT_HOST: 0.0.0.0
+      NUXT_PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET}
-      PORT: 3001
+      NUXT_SECRET_KEY: ${NUXT_SECRET_KEY}
+      # Configurações de performance
+      NODE_OPTIONS: --max-old-space-size=1024
+      NITRO_PRESET: node-server
     volumes:
       - uploads_data:/app/uploads
       - logs_data:/app/logs
@@ -56,18 +84,24 @@ services:
     networks:
       - clube-tiro-network
     restart: unless-stopped
+    # Limites de recursos
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+    # Health check customizado
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (res) => { if (res.statusCode === 200) process.exit(0); else process.exit(1); }).on('error', () => process.exit(1));"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
-    container_name: clube-tiro-frontend-prod
-    environment:
-      REACT_APP_API_URL: ${API_URL}
-    networks:
-      - clube-tiro-network
-    restart: unless-stopped
-
+  # Nginx Reverse Proxy (Produção)
   nginx:
     image: nginx:alpine
     container_name: clube-tiro-nginx-prod
@@ -77,19 +111,53 @@ services:
     volumes:
       - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
+      - logs_data:/var/log/nginx
     depends_on:
-      - frontend
-      - backend
+      nuxt-app:
+        condition: service_healthy
     networks:
       - clube-tiro-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Backup automático (opcional)
+  backup:
+    image: postgres:15-alpine
+    container_name: clube-tiro-backup
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data:ro
+      - backup_data:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - clube-tiro-network
+    restart: unless-stopped
+    # Executar backup diário às 2:00 AM
+    command: sh -c 'while true; do sleep 86400; sh /backup.sh; done'
 
 networks:
   clube-tiro-network:
     driver: bridge
+    name: clube-tiro-network-prod
 
 volumes:
   postgres_data:
+    name: clube-tiro-postgres-data-prod
   redis_data:
+    name: clube-tiro-redis-data-prod
   uploads_data:
+    name: clube-tiro-uploads-data-prod
   logs_data:
+    name: clube-tiro-logs-data-prod
+  backup_data:
+    name: clube-tiro-backup-data-prod

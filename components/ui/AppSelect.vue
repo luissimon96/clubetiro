@@ -1,13 +1,13 @@
 <template>
   <div class="w-full">
-    <label v-if="label" :for="id" class="block text-sm font-medium text-gray-700 mb-1">
+    <label v-if="label" :for="id.value" class="block text-sm font-medium text-gray-700 mb-1">
       {{ label }}
       <span v-if="required" class="text-red-500">*</span>
     </label>
     
     <div class="relative">
       <select
-        :id="id"
+        :id="id.value"
         :value="modelValue"
         :required="required"
         :disabled="disabled"
@@ -71,7 +71,7 @@ const emit = defineEmits<{
   focus: []
 }>()
 
-const id = props.id || `select-${Math.random().toString(36).substr(2, 9)}`
+const id = computed(() => props.id || `select-${process.server ? 'server' : 'client'}-${Math.random().toString(36).substr(2, 9)}`)
 
 const selectClasses = computed(() => {
   const baseClasses = [

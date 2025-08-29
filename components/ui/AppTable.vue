@@ -23,7 +23,7 @@
       <thead class="bg-gray-50">
         <tr>
           <th
-            v-for="column in columns"
+            v-for="column in tableColumns"
             :key="column.key"
             scope="col"
             class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -36,8 +36,8 @@
         </tr>
       </thead>
       <tbody class="bg-white divide-y divide-gray-200">
-        <tr v-if="data.length === 0">
-          <td :colspan="columns.length + (showActions ? 1 : 0)" class="px-6 py-12 text-center text-gray-500">
+        <tr v-if="!tableData || tableData.length === 0">
+          <td :colspan="tableColumns.length + (showActions ? 1 : 0)" class="px-6 py-12 text-center text-gray-500">
             <div class="flex flex-col items-center">
               <svg class="h-12 w-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -46,14 +46,16 @@
             </div>
           </td>
         </tr>
-        <tr v-else v-for="(item, index) in data" :key="item.id || index" class="hover:bg-gray-50">
+        <tr v-else v-for="(item, index) in tableData" :key="item.id || index" class="hover:bg-gray-50">
           <td
-            v-for="column in columns"
+            v-for="column in tableColumns"
             :key="column.key"
             class="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
           >
             <slot :name="`cell-${column.key}`" :item="item" :value="item[column.key]">
-              {{ formatCellValue(item[column.key], column.type) }}
+              <slot :name="column.key" :item="item" :value="item[column.key]">
+                {{ formatCellValue(item[column.key], column.type) }}
+              </slot>
             </slot>
           </td>
           <td v-if="showActions" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -83,13 +85,15 @@ interface Column {
 }
 
 interface Props {
-  data: any[]
-  columns: Column[]
+  data?: any[]
+  items?: any[]
+  columns?: Column[]
+  headers?: Column[]
   loading?: boolean
   showActions?: boolean
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   loading: false,
   showActions: true
 })
@@ -97,6 +101,10 @@ withDefaults(defineProps<Props>(), {
 defineEmits<{
   delete: [id: string]
 }>()
+
+// Computed properties for backward compatibility
+const tableData = computed(() => props.data || props.items || [])
+const tableColumns = computed(() => props.columns || props.headers || [])
 
 function formatCellValue(value: any, type?: string): string {
   if (value === null || value === undefined) return '-'
