@@ -18,8 +18,8 @@ export default defineNuxtConfig({
   
   // TypeScript Configuration
   typescript: {
-    strict: false,
-    typeCheck: false
+    strict: true,
+    typeCheck: true
   },
 
   // Runtime Configuration

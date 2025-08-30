@@ -44,9 +44,10 @@ services:
 
   # Aplicação Nuxt.js (desenvolvimento)
   nuxt-app:
-    image: node:20-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
     container_name: clube-tiro-nuxt-dev
-    working_dir: /app
     ports:
       - "${NUXT_PORT:-3000}:3000"
     environment:
@@ -57,9 +58,19 @@ services:
       REDIS_URL: redis://redis:6379
       NUXT_SECRET_KEY: ${NUXT_SECRET_KEY:-dev-secret-key-change-in-production}
     volumes:
-      # Mount source code for development hot reload
-      - .:/app
-      - node_modules:/app/node_modules
+      # Mount only source files for hot reload (exclude node_modules)
+      - ./pages:/app/pages
+      - ./components:/app/components
+      - ./composables:/app/composables
+      - ./server:/app/server
+      - ./models:/app/models
+      - ./middleware:/app/middleware
+      - ./layouts:/app/layouts
+      - ./assets:/app/assets
+      - ./public:/app/public
+      - ./nuxt.config.ts:/app/nuxt.config.ts
+      - ./tailwind.config.js:/app/tailwind.config.js
+      - ./tsconfig.json:/app/tsconfig.json
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,8 +79,6 @@ services:
     networks:
       - clube-tiro-network
     restart: unless-stopped
-    # Instalar dependências e executar desenvolvimento
-    command: sh -c "npm ci && npm run dev"
 
 networks:
   clube-tiro-network:
@@ -81,5 +90,3 @@ volumes:
     name: clube-tiro-postgres-data
   redis_data:
     name: clube-tiro-redis-data
-  node_modules:
-    name: clube-tiro-node-modules

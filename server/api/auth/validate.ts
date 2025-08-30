@@ -1,5 +1,6 @@
 // Token validation API for client-side middleware
 import { verifyToken } from '~/server/utils/auth'
+import { query } from '~/utils/database'
 
 export default defineEventHandler(async (event) => {
   if (getMethod(event) !== 'GET') {
@@ -24,9 +25,6 @@ export default defineEventHandler(async (event) => {
     const decoded = verifyToken(token)
     
     // Get user information from database
-    const db = await getDatabaseConnection()
-    
-    try {
       const userQuery = `
         SELECT 
           u.id,
@@ -41,7 +39,7 @@ export default defineEventHandler(async (event) => {
         WHERE u.id = $1 AND u.ativo = true
       `
       
-      const result = await db.query(userQuery, [decoded.userId])
+      const result = await query(userQuery, [decoded.userId])
       
       if (result.rows.length === 0) {
         return {
@@ -65,9 +63,7 @@ export default defineEventHandler(async (event) => {
         }
       }
       
-    } finally {
-      await db.end()
-    }
+    // No need to close connection - pool handles it automatically
 
   } catch (error) {
     console.error('Token validation error:', error)
@@ -79,15 +75,4 @@ export default defineEventHandler(async (event) => {
   }
 })
 
-async function getDatabaseConnection() {
-  const { Client } = await import('pg')
-  const client = new Client({
-    host: process.env.POSTGRES_HOST || process.env.DB_HOST || 'postgres',
-    port: parseInt(process.env.POSTGRES_PORT || process.env.DB_PORT || '5432'),
-    database: process.env.POSTGRES_DB || process.env.DB_NAME || 'clube_tiro_db',
-    user: process.env.POSTGRES_USER || process.env.DB_USER || 'clube_tiro_user',
-    password: process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD || 'clube_tiro_senha_forte_123'
-  })
-  await client.connect()
-  return client
-}
+// Removed getDatabaseConnection - now using connection pool from utils/database

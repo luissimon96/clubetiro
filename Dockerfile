@@ -1,5 +1,5 @@
 # Multi-stage build para Nuxt.js
-FROM node:20-alpine AS base
+FROM node:lts-alpine AS base
 
 # Instalar dumb-init para proper signal handling
 RUN apk add --no-cache dumb-init
@@ -47,7 +47,7 @@ EXPOSE 3000
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { \
-    if (res.statusCode === 200) process.exit(0); else process.exit(1); \
+  if (res.statusCode === 200) process.exit(0); else process.exit(1); \
   }).on('error', () => process.exit(1));"
 
 # Usar dumb-init para proper signal handling

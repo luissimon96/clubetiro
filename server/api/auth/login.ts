@@ -1,8 +1,12 @@
 // Authentication API for hierarchical club system
-import type { LoginRequest, LoginResponse } from '~/models/auth'
+import type { LoginResponse } from '~/models/auth'
 import { verifyPassword, generateTokens } from '~/server/utils/auth'
+import { query, transaction } from '~/utils/database'
+import { validateBody } from '~/utils/validation'
+import { loginSchema, type LoginRequest } from '~/schemas/auth'
+import { withErrorHandling, createNotFoundError } from '~/utils/errorHandler'
 
-export default defineEventHandler(async (event) => {
+const loginHandler = async (event: H3Event): Promise<LoginResponse> => {
   if (getMethod(event) !== 'POST') {
     throw createError({
       statusCode: 405,
@@ -10,21 +14,11 @@ export default defineEventHandler(async (event) => {
     })
   }
   
-  const body = await readBody(event) as LoginRequest
+  // Validate request body with Zod schema
+  const body = await validateBody(event, loginSchema)
   
-  if (!body.email || !body.senha) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: 'Email e senha são obrigatórios'
-    })
-  }
-  
-  try {
-    const db = await getDatabaseConnection()
-    
-    try {
-      // Find user by email
-      const userQuery = `
+  // Find user by email
+  const userQuery = `
         SELECT 
           u.id,
           u.nome,
@@ -40,12 +34,13 @@ export default defineEventHandler(async (event) => {
         WHERE u.email = $1 AND u.ativo = true
       `
       
-      const result = await db.query(userQuery, [body.email.toLowerCase()])
+      const result = await query(userQuery, [body.email.toLowerCase()])
       
       if (result.rows.length === 0) {
         throw createError({
           statusCode: 401,
-          statusMessage: 'Credenciais inválidas'
+          statusMessage: 'Credenciais inválidas',
+          data: { code: 'INVALID_CREDENTIALS' }
         })
       }
       
@@ -57,19 +52,21 @@ export default defineEventHandler(async (event) => {
       if (!isValidPassword) {
         throw createError({
           statusCode: 401,
-          statusMessage: 'Credenciais inválidas'
+          statusMessage: 'Credenciais inválidas',
+          data: { code: 'INVALID_CREDENTIALS' }
         })
       }
       
       // Check if club is active (if user belongs to a club)
       if (user.clube_id) {
         const clubQuery = `SELECT ativo FROM clubes WHERE id = $1`
-        const clubResult = await db.query(clubQuery, [user.clube_id])
+        const clubResult = await query(clubQuery, [user.clube_id])
         
         if (clubResult.rows.length === 0 || !clubResult.rows[0].ativo) {
           throw createError({
             statusCode: 403,
-            statusMessage: 'Clube inativo. Contate o administrador.'
+            statusMessage: 'Clube inativo. Contate o administrador.',
+            data: { code: 'CLUB_INACTIVE' }
           })
         }
       }
@@ -82,24 +79,27 @@ export default defineEventHandler(async (event) => {
         permissoes: user.permissoes
       })
       
-      // Update last login
-      await db.query(
-        'UPDATE users SET ultimo_login = CURRENT_TIMESTAMP WHERE id = $1',
-        [user.id]
-      )
-      
-      // Store refresh token in session (optional, for better security)
-      await db.query(`
-        INSERT INTO user_sessions (user_id, refresh_token, expires_at, user_agent, ip_address)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (refresh_token) DO UPDATE SET last_used_at = CURRENT_TIMESTAMP
-      `, [
-        user.id,
-        tokens.refreshToken,
-        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-        getHeader(event, 'user-agent') || '',
-        getClientIP(event) || ''
-      ])
+      // Update last login and store session in a transaction
+      await transaction(async (client) => {
+        // Update last login
+        await client.query(
+          'UPDATE users SET ultimo_login = CURRENT_TIMESTAMP WHERE id = $1',
+          [user.id]
+        )
+        
+        // Store refresh token in session
+        await client.query(`
+          INSERT INTO user_sessions (user_id, refresh_token, expires_at, user_agent, ip_address)
+          VALUES ($1, $2, $3, $4, $5)
+          ON CONFLICT (refresh_token) DO UPDATE SET last_used_at = CURRENT_TIMESTAMP
+        `, [
+          user.id,
+          tokens.refreshToken,
+          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+          getHeader(event, 'user-agent') || '',
+          getClientIP(event) || ''
+        ])
+      })
       
       const response: LoginResponse = {
         user: {
@@ -124,35 +124,7 @@ export default defineEventHandler(async (event) => {
       })
       
       return response
-      
-    } finally {
-      await db.end()
-    }
-    
-  } catch (error: any) {
-    console.error('Login error:', error)
-    
-    // Don't leak internal errors
-    if (error.statusCode) {
-      throw error
-    }
-    
-    throw createError({
-      statusCode: 500,
-      statusMessage: 'Erro interno do servidor'
-    })
-  }
-})
-
-async function getDatabaseConnection() {
-  const { Client } = await import('pg')
-  const client = new Client({
-    host: process.env.POSTGRES_HOST || process.env.DB_HOST || 'postgres',
-    port: parseInt(process.env.POSTGRES_PORT || process.env.DB_PORT || '5432'),
-    database: process.env.POSTGRES_DB || process.env.DB_NAME || 'clube_tiro_db',
-    user: process.env.POSTGRES_USER || process.env.DB_USER || 'clube_tiro_user',
-    password: process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD || 'clube_tiro_senha_forte_123'
-  })
-  await client.connect()
-  return client
 }
+
+// Export with error handling wrapper
+export default defineEventHandler(withErrorHandling(loginHandler))

@@ -24,7 +24,16 @@
       "Bash(docker volume rm:*)",
       "Bash(docker exec:*)",
       "Bash(docker cp:*)",
-      "Bash(docker logs:*)"
+      "Bash(docker logs:*)",
+      "Bash(echo $APPDATA)",
+      "Read(C:\\Users\\luiss\\AppData\\Roaming/**)",
+      "Read(C:\\Users\\luiss\\AppData\\Roaming\\Claude/**)",
+      "Bash(icacls:*)",
+      "WebSearch",
+      "WebSearch",
+      "WebSearch",
+      "Bash(timeout 30 curl -s http://localhost:3000/api/health)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": [],
