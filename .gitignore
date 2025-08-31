@@ -69,4 +69,5 @@ coverage/
 
 # Temporary files
 tmp/
-temp/
+temp
+*.rdb
