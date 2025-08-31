@@ -1,5 +1,22 @@
-import { z, ZodError, ZodSchema } from 'zod'
+import { z, ZodError, ZodSchema, ZodIssue } from 'zod'
 import type { H3Event } from 'h3'
+
+/**
+ * Format validation error for consistent error responses
+ */
+interface ValidationError {
+  field: string
+  message: string
+  code: string
+}
+
+function formatZodError(error: ZodError): ValidationError[] {
+  return error.issues.map((issue: ZodIssue) => ({
+    field: issue.path.join('.') || 'root',
+    message: issue.message,
+    code: issue.code
+  }))
+}
 
 /**
  * Validate request body against a Zod schema
@@ -18,11 +35,7 @@ export async function validateBody<T>(
         statusCode: 400,
         statusMessage: 'Dados inválidos',
         data: {
-          errors: error.errors.map(err => ({
-            field: err.path.join('.'),
-            message: err.message,
-            code: err.code
-          }))
+          errors: formatZodError(error)
         }
       })
     }
@@ -50,11 +63,7 @@ export function validateQuery<T>(
         statusCode: 400,
         statusMessage: 'Parâmetros inválidos',
         data: {
-          errors: error.errors.map(err => ({
-            field: err.path.join('.'),
-            message: err.message,
-            code: err.code
-          }))
+          errors: formatZodError(error)
         }
       })
     }
@@ -82,11 +91,7 @@ export function validateParams<T>(
         statusCode: 400,
         statusMessage: 'Parâmetros de rota inválidos',
         data: {
-          errors: error.errors.map(err => ({
-            field: err.path.join('.'),
-            message: err.message,
-            code: err.code
-          }))
+          errors: formatZodError(error)
         }
       })
     }

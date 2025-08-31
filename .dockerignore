@@ -8,86 +8,172 @@ yarn-error.log*
 .nuxt
 .nitro
 .output
+
+# Security: Environment files
 .env
-.env.local
-.env.development
-.env.test
-.env.production
+.env.*
+!.env.example
 
-# OS
-.DS_Store
-Thumbs.db
+# Security: Sensitive configuration files
+*.key
+*.pem
+*.cert
+*.crt
+*.p12
+*.pfx
+secrets/
+.secrets
 
-# Editor
-.vscode
-.idea
-*.swp
-*.swo
-*~
+# Security: SSH and Git credentials
+.ssh/
+.git/
+.gitignore
+.gitattributes
+id_rsa*
+known_hosts
 
-# Logs
-logs
+# Security: Docker and compose files (prevent recursive copies)
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Security: CI/CD and deployment files
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+deploy/
+deployment/
+
+# Security: Database dumps and backups
+*.sql
+*.dump
+*.backup
+*.bak
+*.old
+backups/
+
+# Security: Log files (may contain sensitive info)
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Coverage directory used by tools like istanbul
-coverage
+# Security: Coverage and test artifacts
+coverage/
 .nyc_output
+test-results/
+playwright-report/
 
-# Git
-.git
-.gitignore
+# Security: IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.sublime-*
+*.code-workspace
 
-# Docker
-Dockerfile*
-docker-compose*
-.dockerignore
+# Security: OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
 
-# Documentação
+# Security: Temporary and cache files
+tmp/
+temp/
+.tmp/
+.cache/
+.parcel-cache/
+
+# Security: Build artifacts
+dist/
+build/
+out/
+
+# Security: Documentation (may contain sensitive architecture info)
 README.md
 docs/
+documentation/
+*.md
+!package.json
 
-# Volumes e dados locais
+# Security: Development tools and configs
+.eslintrc*
+.prettierrc*
+.editorconfig
+jest.config.*
+vitest.config.*
+
+# Security: Volume mount directories
 volumes/
 scripts/volumes/
+
+# Security: Migration artifacts
 database/migrations/
 database/seeds/
 
-# Backend separado (legacy)
+# Security: Legacy backend/frontend separation
 backend/
 frontend/
 
-# Testes
+# Security: Test files
 test/
 tests/
 __tests__/
-*.test.js
-*.test.ts
-*.spec.js
-*.spec.ts
+*.test.*
+*.spec.*
+e2e/
+cypress/
 
-# Build artifacts
-dist/
-build/
+# Security: Package managers
+.pnpm-store
+.yarn/
+.pnp.*
 
-# Temporary files
-tmp/
-temp/
+# Security: macOS
+.fseventsd
+.vol
+.com.apple.timemachine.donotpresent
 
-# SSL certificates
-*.pem
-*.key
-*.cert
-*.crt
-nginx/ssl/
+# Security: Windows
+$RECYCLE.BIN/
+System Volume Information/
 
-# Backup files
-*.backup
-*.bak
-*.old
+# Security: Linux
+.Trash-*
 
-# Cache
-.cache
-.parcel-cache
+# Security: Analysis and profiling
+.clinic/
+profile.*
+*.cpuprofile
+*.heapprofile
+
+# Security: Development databases
+*.sqlite
+*.sqlite3
+*.db
+
+# Security: Configuration management
+ansible/
+terraform/
+.terraform/
+*.tfstate*
+*.tfvars
+
+# Security: Container scanning reports
+trivy-*
+clair-*
+security-scan*
+# Security: SSL keys and certificates in scripts
+scripts/nginx/ssl/
+scripts/**/*.key
+scripts/**/*.pem
+scripts/**/*.cert
+scripts/**/*.crt

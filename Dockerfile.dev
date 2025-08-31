@@ -1,37 +1,92 @@
-# Dockerfile for Development with Hot-Reload
-FROM node:lts-alpine
+# Dockerfile for Development with Enhanced Security and Hot-Reload Support
+# Security-first approach while maintaining development workflow
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+FROM node:lts-alpine AS base
 
-# Create non-root user for security
-RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+# Security: Install security updates and packages needed for native bindings
+RUN apk update && apk upgrade --no-cache \
+    && apk add --no-cache \
+        dumb-init \
+        bash \
+        su-exec \
+        python3 \
+        make \
+        g++ \
+        git \
+    && rm -rf /var/cache/apk/*
 
+# Security: Create non-root user with specific UID/GID for volume compatibility
+# UID 1001 chosen to avoid conflicts with common system users
+RUN addgroup -g 1001 -S nodejs \
+    && adduser -S nodejs -u 1001 -G nodejs \
+    && mkdir -p /home/nodejs \
+    && chown -R nodejs:nodejs /home/nodejs
+
+# Security: Set secure working directory with proper ownership
 WORKDIR /app
+RUN chown nodejs:nodejs /app
 
-# Copy package files
-COPY package*.json ./
+# Security: Copy package files as root, then change ownership
+COPY --chown=nodejs:nodejs package*.json ./
 
-# Install ALL dependencies (including devDependencies for development)
-RUN npm ci
+# Security: Install dependencies as non-root user to prevent privilege escalation
+# Remove lock file and use npm install to avoid oxc-parser issues
+USER nodejs
+RUN rm -rf node_modules package-lock.json \
+    && npm install --prefer-offline --no-audit --fund=false \
+    && npm cache clean --force
 
-# Copy source code
-COPY --chown=nodejs:nodejs . .
+# Security: Copy configuration files with proper ownership
+COPY --chown=nodejs:nodejs nuxt.config.ts tailwind.config.js tsconfig.json ./
 
-# Change to non-root user
+# Copy schemas directory
+COPY --chown=nodejs:nodejs schemas/ ./schemas/
+
+# Security: Copy and secure scripts directory
+COPY --chown=nodejs:nodejs scripts/ ./scripts/
+USER root
+RUN chmod 750 ./scripts/*.sh \
+    && chmod 750 ./scripts/*.js \
+    && chown -R nodejs:nodejs ./scripts/
 USER nodejs
 
-# Expose port
+# Security: Create application directories with proper permissions
+RUN mkdir -p \
+    pages components composables server models middleware \
+    layouts utils assets public .nuxt .output database schemas \
+    && chmod 755 pages components composables server models middleware \
+    layouts utils assets public database schemas \
+    && chmod 750 .nuxt .output
+
+# Security: Switch to non-root user for all operations
+USER nodejs
+
+# Security: Expose only required port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/api/health', (res) => { \
-  if (res.statusCode === 200) process.exit(0); else process.exit(1); \
-  }).on('error', () => process.exit(1));"
+# Security: Enhanced health check with security validation
+HEALTHCHECK --interval=30s --timeout=15s --start-period=45s --retries=3 \
+    CMD ["bash", "-c", "./scripts/docker-entrypoint.sh health && echo 'Security: Non-root user check' && [ $(id -u) -eq 1001 ]"]
 
-# Use dumb-init for proper signal handling
+# Security: Use dumb-init for proper signal handling and su-exec for secure execution
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start development server with hot-reload
-CMD ["npm", "run", "dev"]
+# Security: Default command with non-root execution validation
+CMD ["bash", "-c", "echo 'Security: Starting as user:' $(id -un) && ./scripts/docker-entrypoint.sh npm run dev"]
+
+# Security: Container metadata and labels
+LABEL \
+    org.opencontainers.image.title="Clube de Tiro Development" \
+    org.opencontainers.image.description="Secure development container for Clube de Tiro" \
+    org.opencontainers.image.version="dev" \
+    security.non-root="true" \
+    security.user="nodejs:1001" \
+    security.capabilities="minimal" \
+    security.scan="required" \
+    maintainer.security="enabled"
+
+# Security: Runtime security validations (development-safe)
+USER nodejs
+RUN echo "Security validation: User is $(id -un) with UID $(id -u)" \
+    && test $(id -u) -eq 1001 \
+    && echo "✓ Security: Non-root user verification passed"

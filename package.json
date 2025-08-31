@@ -7,7 +7,18 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "migrate": "node scripts/migrate.js run",
+    "migrate:health": "node scripts/migrate.js health",
+    "migrate:test": "node scripts/test-migrations.js",
+    "db:setup": "node scripts/migrate.js run",
+    "dev:migrate": "npm run migrate && npm run dev",
+    "security:setup": "bash scripts/security-setup.sh",
+    "security:validate": "bash scripts/security-validate.sh",
+    "security:audit": "npm audit --audit-level=moderate",
+    "security:fix": "npm audit fix",
+    "security:scan": "docker scout cves --format sarif --output security-report.sarif . || echo 'Docker Scout not available'",
+    "dev:secure": "npm run security:setup && docker-compose up --build"
   },
   "dependencies": {
     "@tailwindcss/forms": "^0.5.10",
@@ -27,6 +38,8 @@
     "@nuxtjs/tailwindcss": "^6.14.0",
     "autoprefixer": "^10.4.21",
     "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.3.3",
+    "vue-tsc": "^2.2.10"
   }
 }

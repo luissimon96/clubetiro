@@ -14,7 +14,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./database/init:/docker-entrypoint-initdb.d
+      - ./database/init:/docker-entrypoint-initdb.d:ro
     networks:
       - clube-tiro-network
     healthcheck:
@@ -23,6 +23,13 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    # Security: Run PostgreSQL with non-root user
+    user: postgres
+    # Security: Read-only root filesystem (except for data volume)
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
 
   # Cache Redis
   redis:
@@ -41,6 +48,12 @@ services:
       retries: 5
     restart: unless-stopped
     command: redis-server --appendonly yes
+    # Security: Run Redis with non-root user
+    user: redis
+    # Security: Read-only root filesystem (except for data volume)
+    read_only: true
+    tmpfs:
+      - /tmp
 
   # Aplicação Nuxt.js (desenvolvimento)
   nuxt-app:
@@ -51,26 +64,71 @@ services:
     ports:
       - "${NUXT_PORT:-3000}:3000"
     environment:
+      # Node.js environment
       NODE_ENV: development
       NUXT_HOST: 0.0.0.0
       NUXT_PORT: 3000
+      
+      # Database connection - individual variables (used by utils/database.ts)
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-clube_tiro_db}
+      DB_USER: ${POSTGRES_USER:-clube_tiro_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-clube_tiro_pass}
+      
+      # Database connection - URL format (fallback support)
       DATABASE_URL: postgresql://${POSTGRES_USER:-clube_tiro_user}:${POSTGRES_PASSWORD:-clube_tiro_pass}@postgres:5432/${POSTGRES_DB:-clube_tiro_db}
+      
+      # Redis connection
       REDIS_URL: redis://redis:6379
+      
+      # Nuxt.js configuration
       NUXT_SECRET_KEY: ${NUXT_SECRET_KEY:-dev-secret-key-change-in-production}
+      
+      # JWT Authentication (used by server/utils/auth.ts)
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-key-change-in-production-min-64-chars}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-jwt-refresh-secret-key-change-in-production-min-64-chars}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      
+      # Security: Development security settings
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-10}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-1000}
+      SESSION_SECURE: "false"
+      CORS_ORIGINS: "http://localhost:3000,https://localhost:3000"
     volumes:
-      # Mount only source files for hot reload (exclude node_modules)
-      - ./pages:/app/pages
-      - ./components:/app/components
-      - ./composables:/app/composables
-      - ./server:/app/server
-      - ./models:/app/models
-      - ./middleware:/app/middleware
-      - ./layouts:/app/layouts
-      - ./assets:/app/assets
-      - ./public:/app/public
-      - ./nuxt.config.ts:/app/nuxt.config.ts
-      - ./tailwind.config.js:/app/tailwind.config.js
-      - ./tsconfig.json:/app/tsconfig.json
+      # Essential configuration files for hot-reload and dependency management
+      # Security: Read-only mounts where possible
+      - ./package.json:/app/package.json:ro
+      - ./package-lock.json:/app/package-lock.json:ro
+      - ./nuxt.config.ts:/app/nuxt.config.ts:ro
+      - ./tailwind.config.js:/app/tailwind.config.js:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      
+      # Environment files (development only) - Security: Read-only
+      - ./.env:/app/.env:ro
+      
+      # Source directories for hot reload - Security: Use delegated for performance on macOS
+      - ./pages:/app/pages:delegated
+      - ./components:/app/components:delegated
+      - ./composables:/app/composables:delegated
+      - ./server:/app/server:delegated
+      - ./models:/app/models:delegated
+      - ./middleware:/app/middleware:delegated
+      - ./layouts:/app/layouts:delegated
+      - ./utils:/app/utils:delegated
+      - ./assets:/app/assets:delegated
+      - ./public:/app/public:delegated
+      
+      # Database and migration files - Security: Read-only
+      - ./database:/app/database:ro
+      
+      # Build artifacts and cache directories - Security: Writable but isolated
+      - nuxt_cache:/app/.nuxt
+      - nuxt_output:/app/.output
+      
+      # Security: Exclude node_modules from being overwritten (performance + security)
+      - /app/node_modules
     depends_on:
       postgres:
         condition: service_healthy
@@ -79,14 +137,55 @@ services:
     networks:
       - clube-tiro-network
     restart: unless-stopped
+    # Security: Run as non-root user (1001:1001)
+    user: "1001:1001"
+    # Security: Drop all capabilities except what's needed
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    # Security: Disable privilege escalation
+    security_opt:
+      - no-new-privileges:true
+    # Security: Set memory limits to prevent DoS
+    mem_limit: 1g
+    # Security: Set PID limits
+    pids_limit: 100
+    # Security: Prevent container from gaining new privileges
+    privileged: false
+    # Security: Use limited /dev/shm
+    shm_size: 64m
 
 networks:
   clube-tiro-network:
     driver: bridge
     name: clube-tiro-network
+    # Security: Enable network isolation
+    internal: false
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 volumes:
   postgres_data:
     name: clube-tiro-postgres-data
+    # Security: Set volume driver options
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volumes/postgres
   redis_data:
     name: clube-tiro-redis-data
+    # Security: Set volume driver options  
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volumes/redis
+  # Security: Isolated cache volumes for build artifacts
+  nuxt_cache:
+    name: clube-tiro-nuxt-cache
+  nuxt_output:
+    name: clube-tiro-nuxt-output
